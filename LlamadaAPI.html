@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User List</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .user-table th, .user-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        .user-table th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+        .load-button {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .load-button button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .download-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .download-btn:hover {
+            background-color: #45a049;
+        }
+        .download-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .user-image {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .status-message {
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lista de Usuarios</h1>
+    <div class="load-button">
+        <button onclick="fetchUsers()">Cargar Usuarios</button>
+    </div>
+    <div id="statusMessage"></div>
+    <table class="user-table" id="userTable">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Género</th>
+                <th>Ubicación</th>
+                <th>Correo Electrónico</th>
+                <th>Fecha de Nacimiento</th>
+                <th>Fotografía</th>
+                <th>Descargar Imagen</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        // Función para mostrar mensajes de estado
+        function showStatusMessage(message, isSuccess = true) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.innerText = message;
+            statusDiv.className = isSuccess ? 'status-message status-success' : 'status-message status-error';
+            
+            // Ocultar el mensaje después de 5 segundos
+            setTimeout(() => {
+                statusDiv.innerText = '';
+                statusDiv.className = '';
+            }, 5000);
+        }
+
+        // Función para descargar la imagen de un usuario
+        async function downloadImage(userId, buttonElement) {
+            try {
+                // Deshabilitar el botón mientras se descarga
+                buttonElement.disabled = true;
+                buttonElement.innerText = 'Descargando...';
+
+                const response = await fetch(`http://localhost:3000/api/users/${userId}/download-image`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Error al descargar la imagen');
+                }
+
+                const result = await response.json();
+                
+                if (result.data.success) {
+                    // Descargar el archivo automáticamente
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = `http://localhost:3000/api/downloads/${result.data.fileName}`;
+                    downloadLink.download = result.data.fileName;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    
+                    showStatusMessage(`✓ Imagen de ${result.data.userName} descargada exitosamente`, true);
+                } else {
+                    throw new Error('Error en la descarga');
+                }
+            } catch (error) {
+                console.error('Error downloading image:', error);
+                showStatusMessage('✗ Error al descargar la imagen: ' + error.message, false);
+            } finally {
+                // Rehabilitar el botón
+                buttonElement.disabled = false;
+                buttonElement.innerText = 'Descargar';
+            }
+        }
+
+        // Función para cargar usuarios
+        async function fetchUsers() {
+            try {
+                const response = await fetch('http://localhost:3000/api/users');
+                const users = await response.json();
+                const userTable = document.getElementById('userTable').getElementsByTagName('tbody')[0];
+                userTable.innerHTML = ''; //limpiar datos
+                
+                users.forEach(user => {
+                    const row = userTable.insertRow();
+                    row.insertCell(0).innerText = user.name;
+                    row.insertCell(1).innerText = user.gender;
+                    row.insertCell(2).innerText = user.location;
+                    row.insertCell(3).innerText = user.email;
+                    row.insertCell(4).innerText = new Date(user.dob).toLocaleDateString();
+                    
+                    // Celda de la imagen con preview
+                    const imgCell = row.insertCell(5);
+                    const img = document.createElement('img');
+                    img.src = user.picture;
+                    img.alt = user.name;
+                    img.className = 'user-image';
+                    imgCell.appendChild(img);
+                    
+                    // Celda del botón de descarga
+                    const downloadCell = row.insertCell(6);
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.innerText = 'Descargar';
+                    downloadBtn.className = 'download-btn';
+                    downloadBtn.onclick = () => downloadImage(user.email, downloadBtn);
+                    downloadCell.appendChild(downloadBtn);
+                });
+
+                showStatusMessage(`✓ ${users.length} usuarios cargados exitosamente`, true);
+            } catch (error) {
+                console.error('Error fetching users:', error);
+                showStatusMessage('✗ Error al cargar usuarios: ' + error.message, false);
+            }
+        }
+    </script>
+</body>
+</html>
